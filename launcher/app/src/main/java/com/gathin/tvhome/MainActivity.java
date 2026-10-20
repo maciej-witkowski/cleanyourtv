@@ -72,9 +72,11 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -537,19 +539,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
     }
 
-    /**
-     * Home pressed while Home is already in front: singleTask delivers it here, then onResume runs.
-     * Back to the top with the first dock tile focused, like the stock launcher. Back from an app
-     * never comes this way, so returning to the app you left from is unchanged (#118).
-     */
+    /** Home returns to the remembered app, including when Android delivers a new HOME intent. */
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         if (openLauncherSettingsIfAsked(intent)) return;
         if (intent == null || !intent.hasCategory(Intent.CATEGORY_HOME)) return;
-        grid.scrollToPosition(0);
-        lastFocused = 0;
-        lastFocusedKey = adapter.getItemCount() > 0 ? adapter.keyAt(0) : null;
         rebuildOnResume = true;
     }
 
@@ -1732,11 +1727,19 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 if (ha != hb) return ha ? -1 : 1;
                 return String.valueOf(a.loadLabel(this)).compareToIgnoreCase(String.valueOf(b.loadLabel(this)));
             });
+            Map<String, CharSequence> hdmiDeviceNames = new HashMap<>();
+            for (TvInputInfo info : inputs) {
+                if (info.getType() == TvInputInfo.TYPE_HDMI && info.getParentId() != null) {
+                    CharSequence name = info.loadLabel(this);
+                    if (name != null && name.length() > 0) hdmiDeviceNames.put(info.getParentId(), name);
+                }
+            }
             // Some TVs (Sony) report every HDMI port as connected whether or not anything is plugged in,
             // so drop the HDMI status then. A TV with every port really in use loses it too.
             int hdmiPorts = 0, hdmiConnected = 0;
             for (TvInputInfo info : inputs) {
                 if (!info.isPassthroughInput() || info.getType() != TvInputInfo.TYPE_HDMI) continue;
+                if (info.getParentId() != null) continue; // CEC devices share a physical HDMI port.
                 hdmiPorts++;
                 if (tim.getInputState(info.getId()) == TvInputManager.INPUT_STATE_CONNECTED) hdmiConnected++;
             }
@@ -1754,14 +1757,22 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 }
                 // Inputs hidden in the TV's Settings > Inputs stay out of the menu too.
                 if (!info.isPassthroughInput() || info.isHidden(this)) continue;
+                // This Philips firmware also advertises unused SCART/VGA/component SoC inputs.
+                // Keep the requested physical HDMI ports and AV, with Live TV added below.
+                if (info.getType() == TvInputInfo.TYPE_HDMI) {
+                    if (info.getParentId() != null) continue;
+                } else if (info.getType() != TvInputInfo.TYPE_COMPOSITE) continue;
                 CharSequence l = info.loadLabel(this);
                 String label = l == null ? info.getId() : l.toString();
                 boolean hdmi = info.getType() == TvInputInfo.TYPE_HDMI;
+                if (!hdmi) label = "AV";
                 if (hdmi && !label.toUpperCase(Locale.ROOT).contains("HDMI")) label = "HDMI " + label;
                 // The name given in Settings > Inputs (e.g. "MacBook Pro") goes first, the port after it.
                 CharSequence custom = info.loadCustomLabel(this);
                 if (custom != null && custom.length() > 0 && !custom.toString().equals(label)) {
                     label = custom + " \u00B7 " + label;
+                } else if (hdmi && hdmiDeviceNames.containsKey(info.getId())) {
+                    label += " \u00B7 " + hdmiDeviceNames.get(info.getId());
                 }
                 final String id = info.getId();
                 int state = hdmi && hdmiStateBogus ? -1 : tim.getInputState(id);

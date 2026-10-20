@@ -148,9 +148,9 @@
                             android:format12Hour="@string/date_format_home"
                             android:format24Hour="@string/date_format_home"
                             android:textColor="#A6FFFFFF"
-                            android:textSize="14sp"
+                            android:textSize="12sp"
                             android:fontFamily="@font/outfit_regular"
-                            android:letterSpacing="0.14"
+                            android:letterSpacing="0.06"
                             android:textAllCaps="true" />
                     </LinearLayout>
                 </LinearLayout>
@@ -196,7 +196,7 @@
                 <TextView
                     android:id="@+id/btnWifi"
                     style="@style/TopButton"
-                    android:maxWidth="180dp"
+                    android:maxWidth="280dp"
                     android:singleLine="true"
                     android:ellipsize="end"
                     android:text="@string/wifi"
